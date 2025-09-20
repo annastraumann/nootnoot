@@ -5,22 +5,25 @@
 
 	let videoElement;
 	let canvasElement;
+	let fileInput;
 	let model;
 	let isDetecting = false;
 	let detections = [];
+	let inputMode = 'webcam'; // 'webcam' or 'upload'
+	let uploadedFileName = '';
 
 	onMount(async () => {
 		// Load the COCO-SSD model
 		console.log('Loading model...');
 		model = await cocoSsd.load();
 		console.log('Model loaded!');
-		
-		// Start webcam
-		await startWebcam();
 	});
 
 	async function startWebcam() {
 		try {
+			// Stop any existing detection
+			stopDetection();
+			
 			const stream = await navigator.mediaDevices.getUserMedia({ 
 				video: { width: 640, height: 480 } 
 			});
@@ -32,6 +35,45 @@
 			});
 		} catch (error) {
 			console.error('Error accessing webcam:', error);
+		}
+	}
+
+	function handleVideoUpload(event) {
+		const file = event.target.files[0];
+		if (file && file.type.startsWith('video/')) {
+			// Stop any existing detection and webcam
+			stopDetection();
+			
+			// Store filename for display
+			uploadedFileName = file.name;
+			
+			// Create URL for the uploaded video
+			const videoURL = URL.createObjectURL(file);
+			videoElement.srcObject = null; // Clear webcam stream
+			videoElement.src = videoURL;
+			videoElement.load();
+			
+			videoElement.addEventListener('loadeddata', () => {
+				// Start detecting once video is ready
+				detectObjects();
+			});
+		}
+	}
+
+	async function switchInputMode(mode) {
+		inputMode = mode;
+		stopDetection();
+		uploadedFileName = ''; // Clear uploaded filename
+		
+		if (mode === 'webcam') {
+			await startWebcam();
+		} else {
+			// Clear video source and wait for file upload
+			if (videoElement.srcObject) {
+				videoElement.srcObject.getTracks().forEach(track => track.stop());
+				videoElement.srcObject = null;
+			}
+			videoElement.src = '';
 		}
 	}
 
@@ -84,20 +126,64 @@
 		if (videoElement.srcObject) {
 			videoElement.srcObject.getTracks().forEach(track => track.stop());
 		}
+		// Also revoke object URL if it was a uploaded file
+		if (videoElement.src && videoElement.src.startsWith('blob:')) {
+			URL.revokeObjectURL(videoElement.src);
+		}
 	}
 </script>
 
 <div class="detection-container">
 	<h2>Object Detection with TensorFlow.js</h2>
 	
+	<!-- Input mode selection -->
+	<div class="input-mode-selector">
+		<button 
+			class="mode-button" 
+			class:active={inputMode === 'webcam'}
+			on:click={() => switchInputMode('webcam')}
+		>
+			📹 Webcam
+		</button>
+		<button 
+			class="mode-button" 
+			class:active={inputMode === 'upload'}
+			on:click={() => switchInputMode('upload')}
+		>
+			📁 Upload Video
+		</button>
+	</div>
+	
+	<!-- File upload input (only show when upload mode is selected) -->
+	{#if inputMode === 'upload'}
+		<div class="file-upload">
+			<label for="video-file" class="file-upload-label">
+				📁 Choose Video File
+				<input 
+					id="video-file"
+					type="file" 
+					accept="video/*" 
+					bind:this={fileInput}
+					on:change={handleVideoUpload}
+					style="display: none;"
+				>
+			</label>
+			<p class="upload-hint">Select an MP4, WebM, AVI, or other video file</p>
+			{#if uploadedFileName}
+				<p class="uploaded-file">✅ Uploaded: {uploadedFileName}</p>
+			{/if}
+		</div>
+	{/if}
+	
 	<div class="video-container">
-		<!-- Webcam video -->
+		<!-- Video element (webcam or uploaded file) -->
 		<video 
 			bind:this={videoElement}
 			width="640" 
 			height="480" 
 			autoplay 
 			muted
+			controls={inputMode === 'upload'}
 		></video>
 		
 		<!-- Canvas for drawing bounding boxes (overlays on video) -->
@@ -112,6 +198,11 @@
 		<button on:click={stopDetection} disabled={!isDetecting}>
 			Stop Detection
 		</button>
+		{#if inputMode === 'webcam'}
+			<button on:click={startWebcam} disabled={isDetecting}>
+				Start Webcam
+			</button>
+		{/if}
 	</div>
 	
 	{#if detections.length > 0}
@@ -133,6 +224,69 @@
 		align-items: center;
 		gap: 1rem;
 		padding: 2rem;
+	}
+	
+	.input-mode-selector {
+		display: flex;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+	}
+	
+	.mode-button {
+		padding: 0.5rem 1rem;
+		background: #f8f9fa;
+		border: 2px solid #e9ecef;
+		border-radius: 4px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+	
+	.mode-button:hover {
+		background: #e9ecef;
+	}
+	
+	.mode-button.active {
+		background: #007bff;
+		border-color: #007bff;
+		color: white;
+	}
+	
+	.file-upload {
+		text-align: center;
+		margin-bottom: 1rem;
+	}
+	
+	.file-upload-label {
+		display: inline-block;
+		padding: 1rem 2rem;
+		background: #007bff;
+		color: white;
+		border: 2px solid #007bff;
+		border-radius: 8px;
+		cursor: pointer;
+		font-size: 1rem;
+		font-weight: 500;
+		transition: all 0.2s;
+		margin-bottom: 0.5rem;
+	}
+	
+	.file-upload-label:hover {
+		background: #0056b3;
+		border-color: #0056b3;
+		transform: translateY(-1px);
+	}
+	
+	.upload-hint {
+		font-size: 0.9rem;
+		color: #6c757d;
+		margin: 0.5rem 0 0 0;
+	}
+	
+	.uploaded-file {
+		font-size: 0.9rem;
+		color: #28a745;
+		font-weight: 500;
+		margin: 0.5rem 0 0 0;
 	}
 	
 	.video-container {
@@ -171,6 +325,10 @@
 	button:disabled {
 		background: #ccc;
 		cursor: not-allowed;
+	}
+	
+	.controls button:not(:first-child) {
+		background: #28a745;
 	}
 	
 	.detections-list {

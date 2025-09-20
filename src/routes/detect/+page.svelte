@@ -12,15 +12,18 @@
 	<div class="info">
 		<h3>How it works:</h3>
 		<ul>
-			<li>📹 Uses your webcam to see live video</li>
+			<li>📹 <strong>Webcam mode:</strong> Uses your camera for live detection</li>
+			<li>📁 <strong>Upload mode:</strong> Analyze your own video files</li>
 			<li>🧠 AI model detects objects in real-time</li>
 			<li>📦 Draws green boxes around detected objects</li>
 			<li>📊 Shows confidence percentage for each detection</li>
 		</ul>
 		
 		<p class="note">
-			<strong>Note:</strong> The first time might take a few seconds to load the AI model.
-			Make sure to allow camera access when prompted!
+			<strong>Tips:</strong> 
+			• For webcam: Allow camera access when prompted<br>
+			• For video upload: MP4, WebM, AVI files work best<br>
+			• First load might take a few seconds for the AI model
 		</p>
 	</div>
 </div>
